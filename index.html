@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Simulador de Inversión — Demo</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<header class="app-header">
+  <div class="brand">
+    <div class="logo" aria-hidden="true">₿</div>
+    <div class="brand-text">
+      <h1>Simulador de Inversión</h1>
+      <p class="subtitle">Demo de interfaz — Fondos habilitados para Argentina*</p>
+    </div>
+  </div>
+</header>
+
+<main class="container">
+  <section class="card">
+    <h2>Completá tus datos</h2>
+    <form id="sim-form" novalidate>
+      <div class="grid">
+        <label>Nombre
+          <input type="text" id="nombre" placeholder="Tu nombre" required />
+        </label>
+        <label>Fecha de nacimiento
+          <input type="date" id="fechaNacimiento" required />
+        </label>
+      </div>
+
+      <div class="grid">
+        <label>Monto mensual a invertir (ARS)
+          <input type="number" id="montoMensual" min="0" step="100" placeholder="Ej: 50000" required />
+        </label>
+        <label>Motivo de la inversión
+          <select id="motivo">
+            <option value="ahorro">Ahorro</option>
+            <option value="viaje">Viaje</option>
+            <option value="vivienda">Vivienda</option>
+            <option value="jubilacion">Jubilación</option>
+            <option value="otro">Otro</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="grid">
+        <label>Plazo (años)
+          <input type="number" id="plazoAnios" min="1" max="40" step="1" value="2" required />
+        </label>
+        <label>Método de débito mensual
+          <select id="metodoPago">
+            <option value="credito">Tarjeta de crédito (AR)</option>
+            <option value="debito">Tarjeta de débito (AR)</option>
+            <option value="cbu">Cuenta bancaria (CBU/CVU - AR)</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="card note">
+        <p><strong>Recordá:</strong> Podés retirar tu inversión cuando quieras, pero si retirás antes del plazo pactado se aplica un costo de rescate:</p>
+        <ul>
+          <li>Si rescatás dentro del primer tercio del plazo: <strong>10% del saldo</strong>.</li>
+          <li>Luego de ese tercio y antes del final: <strong>5% del saldo</strong>.</li>
+        </ul>
+      </div>
+
+      <div class="grid">
+        <label>Tasa anual estimada (editable)
+          <input type="number" id="tasaAnual" min="0" step="0.1" value="30" />%
+          <small>Hipotética. Se ajusta según el tipo de fondo sugerido; podés modificarla.</small>
+        </label>
+        <label>Simular rescate anticipado
+          <div class="rescate">
+            <input type="checkbox" id="toggleRescate" />
+            <input type="range" id="mesRescate" min="1" max="24" value="8" disabled />
+            <span id="mesRescateLabel">Mes 8</span>
+          </div>
+        </label>
+      </div>
+
+      <div class="actions">
+        <button type="submit" class="primary">Simular</button>
+        <button type="button" id="btnReset" class="ghost">Limpiar</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="card" id="resultado" hidden>
+    <h2>Resultado</h2>
+    <div id="resumen"></div>
+    <div id="rescateInfo" class="note" hidden></div>
+    <div class="chart-wrap">
+      <svg id="chart" viewBox="0 0 800 320" role="img" aria-label="Evolución mensual"></svg>
+    </div>
+    <div class="table-wrap">
+      <table id="tabla">
+        <thead>
+          <tr>
+            <th>Mes</th>
+            <th>Saldo inicial</th>
+            <th>Aporte</th>
+            <th>Rendimiento</th>
+            <th>Saldo final</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card info">
+    <h3>Cómo definimos el tipo de fondo sugerido</h3>
+    <ul>
+      <li>Plazo ≤ 2 años → <strong>Conservador</strong> (p. ej., renta fija).</li>
+      <li>2 &lt; Plazo ≤ 5 años → <strong>Intermedio</strong> (mix renta fija y variable).</li>
+      <li>Plazo &gt; 5 años → <strong>Agresivo</strong> (p. ej., renta variable).</li>
+    </ul>
+    <p class="disclaimer">
+      * Esta es una demo de interfaz (no hay integración con pagos ni con fondos reales). Los fondos deben ser habilitados en la República Argentina. 
+      Las tasas son <em>hipotéticas</em> y sólo para fines educativos.
+    </p>
+  </section>
+</main>
+
+<footer class="app-footer">
+  <p>Hecho con ❤ para pruebas — 2025</p>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
