@@ -1,18 +1,45 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Simulador de Inversión — Demo</title>
   <link rel="stylesheet" href="styles.css" />
+
+  <!-- Overrides mínimos para soportar tema claro/oscuro sin tocar styles.css -->
+  <style>
+    /* Variables por tema (sobrescriben las de :root al estar después en la cascada) */
+    html[data-theme="dark"]{
+      --bg:#0f172a; --card:#111827; --muted:#94a3b8; --text:#e5e7eb;
+      --accent:#22c55e; --accent-2:#38bdf8; --border:#1f2937; --table:#0b1220;
+      --bg-grad: linear-gradient(180deg,#0b1020 0%, #0e152a 100%);
+      --chart-line:#ffffff; --chart-grid:rgba(255,255,255,.08); --chart-axis:rgba(255,255,255,.3);
+    }
+    html[data-theme="light"]{
+      --bg:#f8fafc; --card:#ffffff; --muted:#475569; --text:#0f172a;
+      --accent:#22c55e; --accent-2:#0284c7; --border:#e5e7eb; --table:#ffffff;
+      --bg-grad: linear-gradient(180deg,#f6f7fb 0%, #eef2f7 100%);
+      --chart-line:#0f172a; --chart-grid:rgba(15,23,42,.08); --chart-axis:rgba(15,23,42,.25);
+    }
+    /* Forzamos a usar el gradiente por variable */
+    html, body { background: var(--bg-grad) !important; color: var(--text); }
+    /* Toolbar del header */
+    .toolbar { margin-left:auto; display:flex; gap:.5rem; align-items:center; }
+    .theme-toggle { min-width: 40px; }
+  </style>
 </head>
 <body>
 <header class="app-header">
-  <div class="brand">
-    <div class="logo" aria-hidden="true">₿</div>
-    <div class="brand-text">
-      <h1>Simulador de Inversión</h1>
-      <p class="subtitle">Demo de interfaz — Fondos habilitados para Argentina*</p>
+  <div class="brand" style="display:flex;align-items:center;gap:12px;width:100%;">
+    <div style="display:flex;align-items:center;gap:12px">
+      <div class="logo" aria-hidden="true">₿</div>
+      <div class="brand-text">
+        <h1>Simulador de Inversión</h1>
+        <p class="subtitle">Demo de interfaz — Fondos habilitados para Argentina*</p>
+      </div>
+    </div>
+    <div class="toolbar">
+      <button id="themeToggle" type="button" class="ghost theme-toggle" aria-label="Cambiar tema">🌙</button>
     </div>
   </div>
 </header>
@@ -61,15 +88,18 @@
       <div class="card note">
         <p><strong>Recordá:</strong> Podés retirar tu inversión cuando quieras, pero si retirás antes del plazo pactado se aplica un costo de rescate:</p>
         <ul>
-          <li>Si rescatás dentro del primer tercio del plazo: <strong>10% del saldo</strong>.</li>
-          <li>Luego de ese tercio y antes del final: <strong>5% del saldo</strong>.</li>
+          <li>0 a 1/3 del plazo: <strong>10% del saldo</strong>.</li>
+          <li>1/3 a 2/3 del plazo: <strong>5% del saldo</strong>.</li>
+          <li>2/3 a antes del vencimiento: <strong>1% del saldo</strong>.</li>
         </ul>
       </div>
 
       <div class="grid">
-        <label>Tasa anual estimada (editable)
-          <input type="number" id="tasaAnual" min="0" step="0.1" value="30" />%
-          <small>Hipotética. Se ajusta según el tipo de fondo sugerido; podés modificarla.</small>
+        <label>Tasa anual (se asigna automáticamente)
+          <input type="number" id="tasaAnual" step="0.01" placeholder="calculando…" readonly />
+          <small>
+            Se toma el <strong>rendimiento anual</strong> del fondo ejemplo según el horizonte (corto, mediano o largo). No usa API.
+          </small>
         </label>
         <label>Simular rescate anticipado
           <div class="rescate">
@@ -111,21 +141,20 @@
   </section>
 
   <section class="card info">
-    <h3>Cómo definimos el tipo de fondo sugerido</h3>
+    <h3>Cómo se elige el fondo</h3>
     <ul>
-      <li>Plazo ≤ 2 años → <strong>Conservador</strong> (p. ej., renta fija).</li>
-      <li>2 &lt; Plazo ≤ 5 años → <strong>Intermedio</strong> (mix renta fija y variable).</li>
-      <li>Plazo &gt; 5 años → <strong>Agresivo</strong> (p. ej., renta variable).</li>
+      <li>Plazo ≤ 2 años → <strong>Corto plazo</strong> (SBS Gestión Renta Fija - Clase A, 45.604%).</li>
+      <li>2 &lt; Plazo ≤ 5 años → <strong>Mediano plazo</strong> (SBS Retorno Total - Clase A, 33.761%).</li>
+      <li>Plazo &gt; 5 años → <strong>Largo plazo</strong> (SBS Acciones Argentina - Clase A, 44.723%).</li>
     </ul>
     <p class="disclaimer">
-      * Esta es una demo de interfaz (no hay integración con pagos ni con fondos reales). Los fondos deben ser habilitados en la República Argentina. 
-      Las tasas son <em>hipotéticas</em> y sólo para fines educativos.
+      * Demo sin integración de pagos ni API. Tasas fijas provistas como ejemplos; no representan rendimientos futuros.
     </p>
   </section>
 </main>
 
 <footer class="app-footer">
-  <p>Hecho con ❤ para pruebas — 2025</p>
+  <p>Hecho con ❤ para Lolo y la Delfi — 2025</p>
 </footer>
 
 <script src="app.js"></script>
