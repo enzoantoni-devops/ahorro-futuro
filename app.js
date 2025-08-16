@@ -1,6 +1,8 @@
-// Utilidades
+// ===========================
+// Utilidades base
+// ===========================
 const fmtARS = new Intl.NumberFormat('es-AR', { style:'currency', currency:'ARS', maximumFractionDigits: 0 });
-const fmtPct = (n)=> `${n.toFixed(2)}%`;
+const fmtPct = (n)=> `${n.toFixed(3)}%`;
 
 const form = document.getElementById('sim-form');
 const resultado = document.getElementById('resultado');
@@ -12,26 +14,89 @@ const chartSvg = document.getElementById('chart');
 const toggleRescate = document.getElementById('toggleRescate');
 const mesRescateInput = document.getElementById('mesRescate');
 const mesRescateLabel = document.getElementById('mesRescateLabel');
+const themeToggleBtn = document.getElementById('themeToggle');
 
+// ===========================
+// Tema (oscuro/claro) con persistencia
+// ===========================
+function getPreferredTheme(){
+  const saved = localStorage.getItem('theme');
+  if (saved === 'light' || saved === 'dark') return saved;
+  return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+    ? 'dark' : 'light';
+}
+function applyTheme(theme){
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('theme', theme);
+  themeToggleBtn.textContent = theme === 'dark' ? '🌙' : '☀️';
+  // refrescar gráfico con colores del tema si ya hay datos
+  if (lastRows) renderChart(lastRows, lastRescate);
+}
+themeToggleBtn.addEventListener('click', ()=>{
+  const t = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  applyTheme(t);
+});
+
+// ===========================
+// Slider rescate: "Mes X de N-1"
+// ===========================
+let rescateMaxMeses = 24;
+function actualizarLabelRescate() {
+  mesRescateLabel.textContent = `Mes ${mesRescateInput.value} de ${rescateMaxMeses}`;
+}
+function setRescateMax(max) {
+  rescateMaxMeses = Math.max(1, max);
+  mesRescateInput.max = String(rescateMaxMeses);
+  if (Number(mesRescateInput.value) > rescateMaxMeses) {
+    mesRescateInput.value = String(rescateMaxMeses);
+  }
+  actualizarLabelRescate();
+}
 toggleRescate.addEventListener('change', () => {
   mesRescateInput.disabled = !toggleRescate.checked;
+  actualizarLabelRescate();
 });
-mesRescateInput.addEventListener('input', () => { mesRescateLabel.textContent = `Mes ${mesRescateInput.value}` });
+mesRescateInput.addEventListener('input', actualizarLabelRescate);
 
+// ===========================
+// Reset
+// ===========================
 document.getElementById('btnReset').addEventListener('click', () => {
   form.reset();
   resultado.hidden = true;
   rescateInfo.hidden = true;
   chartSvg.innerHTML = '';
   tablaBody.innerHTML = '';
+  actualizarTasaSegunPlazo();
+  setRescateMax(24);
 });
 
-function sugerirFondo(plazo) {
-  if (plazo <= 2) return { tipo: 'Conservador', descripcion: 'Renta fija', tasa: 30 };
-  if (plazo <= 5) return { tipo: 'Intermedio', descripcion: 'Mixto (renta fija + variable)', tasa: 45 };
-  return { tipo: 'Agresivo', descripcion: 'Renta variable', tasa: 60 };
+// ===========================
+// Fondos fijos por horizonte
+// ===========================
+const FONDOS = {
+  corto:   { nombre: 'SBS Gestión Renta Fija - Clase A', horizonte: 'Corto plazo',   tasa: 45.604 },
+  mediano: { nombre: 'SBS Retorno Total - Clase A',      horizonte: 'Mediano plazo', tasa: 33.761 },
+  largo:   { nombre: 'SBS Acciones Argentina - Clase A', horizonte: 'Largo plazo',   tasa: 44.723 }
+};
+
+function seleccionarFondoPorPlazo(anios) {
+  if (anios <= 2) return FONDOS.corto;
+  if (anios <= 5) return FONDOS.mediano;
+  return FONDOS.largo;
 }
 
+function actualizarTasaSegunPlazo() {
+  const anios = Number(document.getElementById('plazoAnios').value || 0);
+  const inputTasa = document.getElementById('tasaAnual');
+  const f = seleccionarFondoPorPlazo(anios || 1);
+  inputTasa.value = String(f.tasa.toFixed(3));
+  inputTasa.placeholder = '';
+}
+
+// ===========================
+// Simulación
+// ===========================
 function simular(aporteMensual, anios, tasaAnual) {
   const n = Math.max(1, Math.round(anios * 12));
   const r = Math.pow(1 + tasaAnual/100, 1/12) - 1;
@@ -46,15 +111,31 @@ function simular(aporteMensual, anios, tasaAnual) {
   return rows;
 }
 
+// Penalidades por tercios (10%, 5%, 1%) y evita último mes
 function aplicarRescate(rows, mesRescate) {
   const n = rows.length;
-  const tercio = Math.ceil(n / 3);
-  const row = rows[mesRescate - 1];
+  const tercio1 = Math.floor(n / 3);
+  const tercio2 = Math.floor((2 * n) / 3);
+  const m = Math.max(1, Math.min(mesRescate, n - 1)); // clamp y evita último mes
+
+  const row = rows[m - 1];
   if (!row) return null;
-  const tasaPenalidad = mesRescate <= tercio ? 0.10 : 0.05;
+
+  let tasaPenalidad, tramoLabel;
+  if (m <= tercio1) {
+    tasaPenalidad = 0.10;
+    tramoLabel = `Primer tercio (0–${tercio1} meses)`;
+  } else if (m <= tercio2) {
+    tasaPenalidad = 0.05;
+    tramoLabel = `Segundo tercio (${tercio1 + 1}–${tercio2} meses)`;
+  } else {
+    tasaPenalidad = 0.01;
+    tramoLabel = `Último tercio (${tercio2 + 1}–${n - 1} meses)`;
+  }
+
   const penalidad = row.saldo * tasaPenalidad;
   const neto = row.saldo - penalidad;
-  return { mes: mesRescate, saldo: row.saldo, tasaPenalidad, penalidad, neto, tercio };
+  return { mes: m, saldo: row.saldo, tasaPenalidad, penalidad, neto, tercio1, tercio2, n, tramoLabel };
 }
 
 function renderTabla(rows) {
@@ -69,6 +150,17 @@ function renderTabla(rows) {
   `).join('');
 }
 
+// Colores del gráfico desde CSS vars del tema
+function getChartColors(){
+  const css = getComputedStyle(document.documentElement);
+  return {
+    line: css.getPropertyValue('--chart-line').trim() || '#000',
+    grid: css.getPropertyValue('--chart-grid').trim() || 'rgba(0,0,0,.08)',
+    axis: css.getPropertyValue('--chart-axis').trim() || 'rgba(0,0,0,.25)',
+    dot:  css.getPropertyValue('--chart-line').trim() || '#000',
+  };
+}
+
 // SVG line chart sin dependencias
 function renderChart(rows, rescate) {
   const w = 800, h = 320, pad = 36;
@@ -77,101 +169,111 @@ function renderChart(rows, rescate) {
   const toX = (i)=> pad + (i/(rows.length-1)) * (w - pad*2);
   const toY = (v)=> h - pad - ((v-minY)/(maxY-minY)) * (h - pad*2);
 
-  // Ejes
-  let axes = `<rect x="0" y="0" width="${w}" height="${h}" fill="transparent"/>`;
-  axes += `<line x1="${pad}" y1="${h-pad}" x2="${w-pad}" y2="${h-pad}" stroke="white" opacity="0.3"/>`;
-  axes += `<line x1="${pad}" y1="${pad}" x2="${pad}" y2="${h-pad}" stroke="white" opacity="0.3"/>`;
+  const { line, grid, axis, dot } = getChartColors();
 
-  // Grid horizontal (4 líneas)
+  let axes = `<rect x="0" y="0" width="${w}" height="${h}" fill="transparent"/>`;
+  axes += `<line x1="${pad}" y1="${h-pad}" x2="${w-pad}" y2="${h-pad}" stroke="${axis}"/>`;
+  axes += `<line x1="${pad}" y1="${pad}" x2="${pad}" y2="${h-pad}" stroke="${axis}"/>`;
   for (let i=1;i<=4;i++){
     const y = toY(minY + i*(maxY-minY)/5);
-    axes += `<line x1="${pad}" y1="${y}" x2="${w-pad}" y2="${y}" stroke="white" opacity="0.08"/>`;
+    axes += `<line x1="${pad}" y1="${y}" x2="${w-pad}" y2="${y}" stroke="${grid}"/>`;
   }
 
-  // Línea
   const d = rows.map((r,i)=> `${i===0?'M':'L'} ${toX(i)} ${toY(r.saldo)}`).join(' ');
-  let path = `<path d="${d}" fill="none" stroke="url(#grad)" stroke-width="2.5"/>`;
+  let path = `<path d="${d}" fill="none" stroke="${line}" stroke-width="2.5"/>`;
 
-  // Gradiente
-  const gradient = `
-    <defs>
-      <linearGradient id="grad" x1="0" y1="0" x2="1" y2="0">
-        <stop offset="0%" stop-color="white" stop-opacity="1"/>
-        <stop offset="100%" stop-color="white" stop-opacity="1"/>
-      </linearGradient>
-    </defs>
-  `;
-
-  // Puntos (cada 6 meses)
   let dots = '';
   for (let i=0;i<rows.length;i++){
     if (i % 6 === 0 || i === rows.length-1) {
-      dots += `<circle cx="${toX(i)}" cy="${toY(rows[i].saldo)}" r="3" fill="white"/>`;
+      dots += `<circle cx="${toX(i)}" cy="${toY(rows[i].saldo)}" r="3" fill="${dot}"/>`;
     }
   }
 
-  // Rescate marker
   let rescateLine = '';
   if (rescate) {
     const x = toX(rescate.mes-1);
     rescateLine = `<line x1="${x}" y1="${pad}" x2="${x}" y2="${h-pad}" stroke="red" opacity="0.5"/>`;
   }
 
-  chartSvg.innerHTML = gradient + axes + path + dots + rescateLine;
+  chartSvg.innerHTML = axes + path + dots + rescateLine;
 }
 
-form.addEventListener('submit', (e) => {
+// Guardamos última simulación para refrescar gráfico al cambiar de tema
+let lastRows = null;
+let lastRescate = null;
+
+// Ejecuta toda la simulación y render con la tasa indicada
+async function runSimulacion({ nombre, fechaNacimiento, aporteMensual, motivo, plazoAnios, metodoPago, tasaAnual }) {
+  const rows = simular(aporteMensual, plazoAnios, tasaAnual);
+
+  // tope del slider: último MES anticipado (N-1)
+  setRescateMax(Math.max(1, rows.length - 1));
+
+  // Posible rescate
+  let rescMark = null;
+  if (toggleRescate.checked) {
+    rescMark = aplicarRescate(rows, Number(mesRescateInput.value));
+    rescateInfo.hidden = false;
+    rescateInfo.innerHTML = `
+      <p><strong>Rescate anticipado:</strong> Mes ${rescMark.mes} — ${rescMark.tramoLabel}</p>
+      <ul>
+        <li>Saldo al rescate: <strong>${fmtARS.format(rescMark.saldo)}</strong></li>
+        <li>Penalidad (${fmtPct(rescMark.tasaPenalidad*100)}): <strong>−${fmtARS.format(rescMark.penalidad)}</strong></li>
+        <li>Neto a recibir: <strong>${fmtARS.format(rescMark.neto)}</strong></li>
+      </ul>`;
+  } else {
+    rescateInfo.hidden = true;
+  }
+
+  const fondo = seleccionarFondoPorPlazo(plazoAnios);
+  const montoTotalAportado = rows.reduce((acc, r)=> acc + r.aporte, 0);
+  const saldoFinal = rows[rows.length-1].saldo;
+  resumen.innerHTML = `
+    <p><strong>Hola ${nombre}</strong> — Para un plazo de <strong>${plazoAnios} años</strong>, sugerimos el fondo <strong>${fondo.nombre}</strong> (<em>${fondo.horizonte}</em>).</p>
+    <p>Aporte mensual: <strong>${fmtARS.format(aporteMensual)}</strong> — Tasa anual aplicada: <strong>${fmtPct(tasaAnual)}</strong></p>
+    <p>Monto total aportado: <strong>${fmtARS.format(montoTotalAportado)}</strong> — Proyección de saldo final: <strong>${fmtARS.format(saldoFinal)}</strong></p>
+    <p class="mini">Método de débito elegido: ${metodoPago.toUpperCase()} — Motivo: ${motivo}</p>
+  `;
+
+  renderTabla(rows);
+  renderChart(rows, rescMark);
+
+  lastRows = rows;
+  lastRescate = rescMark;
+  resultado.hidden = false;
+}
+
+// ===========================
+// Listeners
+// ===========================
+document.addEventListener('DOMContentLoaded', () => {
+  applyTheme(getPreferredTheme());
+  document.getElementById('tasaAnual').readOnly = true;
+  actualizarTasaSegunPlazo();
+  actualizarLabelRescate();
+});
+
+form.addEventListener('input', (e) => {
+  if (e.target && e.target.id === 'plazoAnios') actualizarTasaSegunPlazo();
+});
+
+form.addEventListener('submit', async (e) => {
   e.preventDefault();
+
   const nombre = document.getElementById('nombre').value.trim();
   const fechaNacimiento = document.getElementById('fechaNacimiento').value;
   const aporteMensual = Number(document.getElementById('montoMensual').value || 0);
   const motivo = document.getElementById('motivo').value;
   const plazoAnios = Number(document.getElementById('plazoAnios').value);
   const metodoPago = document.getElementById('metodoPago').value;
-  const tasaInput = Number(document.getElementById('tasaAnual').value);
 
   if (!nombre || !fechaNacimiento || !aporteMensual || !plazoAnios) {
     alert('Completá todos los campos obligatorios.');
     return;
   }
 
-  // Sugerencia de fondo
-  const sug = sugerirFondo(plazoAnios);
-  // Si el usuario no tocó nada, usamos la sugerida para inicializar la tasa
-  const tasaAnual = isNaN(tasaInput) || tasaInput <= 0 ? sug.tasa : tasaInput;
+  const fondo = seleccionarFondoPorPlazo(plazoAnios);
+  document.getElementById('tasaAnual').value = String(fondo.tasa.toFixed(3));
 
-  const rows = simular(aporteMensual, plazoAnios, tasaAnual);
-
-  // Posible rescate
-  mesRescateInput.max = rows.length.toString();
-  if (toggleRescate.checked) {
-    const resc = aplicarRescate(rows, Number(mesRescateInput.value));
-    rescateInfo.hidden = false;
-    rescateInfo.innerHTML = `
-      <p><strong>Rescate anticipado:</strong> Mes ${resc.mes} (primer tercio: ${resc.mes <= resc.tercio ? 'Sí' : 'No'})</p>
-      <ul>
-        <li>Saldo al rescate: <strong>${fmtARS.format(resc.saldo)}</strong></li>
-        <li>Penalidad (${fmtPct(resc.tasaPenalidad*100)}): <strong>−${fmtARS.format(resc.penalidad)}</strong></li>
-        <li>Neto a recibir: <strong>${fmtARS.format(resc.neto)}</strong></li>
-      </ul>`;
-  } else {
-    rescateInfo.hidden = true;
-  }
-
-  // Resumen
-  const montoTotalAportado = rows.reduce((acc, r)=> acc + r.aporte, 0);
-  const saldoFinal = rows[rows.length-1].saldo;
-  resumen.innerHTML = `
-    <p><strong>Hola ${nombre}</strong> — Para un plazo de <strong>${plazoAnios} años</strong>, sugerimos un fondo <strong>${sug.tipo}</strong> (${sug.descripcion}).</p>
-    <p>Aporte mensual: <strong>${fmtARS.format(aporteMensual)}</strong> — Tasa anual estimada usada: <strong>${fmtPct(tasaAnual)}</strong></p>
-    <p>Monto total aportado: <strong>${fmtARS.format(montoTotalAportado)}</strong> — Proyección de saldo final: <strong>${fmtARS.format(saldoFinal)}</strong></p>
-    <p class="mini">Método de débito elegido: ${metodoPago.toUpperCase()} — Motivo: ${motivo}</p>
-  `;
-
-  // Render
-  renderTabla(rows);
-  const rescMark = toggleRescate.checked ? aplicarRescate(rows, Number(mesRescateInput.value)) : null;
-  renderChart(rows, rescMark);
-
-  resultado.hidden = false;
+  await runSimulacion({ nombre, fechaNacimiento, aporteMensual, motivo, plazoAnios, metodoPago, tasaAnual: fondo.tasa });
 });

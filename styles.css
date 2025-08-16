@@ -1,4 +1,6 @@
-
+/* ===========================
+   Variables base (dark por defecto)
+   =========================== */
 :root{
   --bg:#0f172a;
   --card:#111827;
@@ -8,48 +10,145 @@
   --accent-2:#38bdf8;
   --border:#1f2937;
   --table:#0b1220;
+
+  /* extras para sombras y fondos */
+  --bg-grad: linear-gradient(180deg,#0b1020 0%, #0e152a 100%);
+  --shadow: 0 10px 30px rgba(0,0,0,.2);
 }
 
-*{box-sizing:border-box}
-html,body{margin:0;padding:0;background:linear-gradient(180deg,#0b1020 0%, #0e152a 100%);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,'Helvetica Neue',Arial,'Noto Sans',sans-serif;}
+/* Mejoras de suavidad y accesibilidad */
+*{ box-sizing:border-box }
+html,body{
+  margin:0; padding:0;
+  background: var(--bg-grad);
+  color: var(--text);
+  font-family: system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,"Helvetica Neue",Arial,"Noto Sans",sans-serif;
+  color-scheme: light dark; /* informa a los UAs */
+  transition: background-color .2s ease, color .2s ease;
+}
+@media (prefers-reduced-motion: reduce){
+  html,body{ transition: none; }
+}
 
+/* ===========================
+   Header
+   =========================== */
 .app-header{
   border-bottom:1px solid var(--border);
-  position:sticky; top:0; background:rgba(15,23,42,.6); backdrop-filter: blur(10px);
+  position:sticky; top:0;
+  background: color-mix(in oklab, var(--card) 75%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 .brand{display:flex;align-items:center;gap:12px;padding:16px 20px;}
-.logo{width:40px;height:40px;border-radius:10px;background:radial-gradient(circle at 30% 30%, var(--accent), var(--accent-2));display:flex;align-items:center;justify-content:center;font-weight:900;color:#0b1220}
+.logo{
+  width:40px;height:40px;border-radius:10px;
+  background:radial-gradient(circle at 30% 30%, var(--accent), var(--accent-2));
+  display:flex;align-items:center;justify-content:center;
+  font-weight:900;color:#0b1220
+}
 .brand-text h1{margin:0;font-size:1.2rem}
 .subtitle{margin:2px 0 0;color:var(--muted);font-size:.9rem}
 
+/* ===========================
+   Layout & Cards
+   =========================== */
 .container{max-width:1100px;margin:20px auto;padding:0 16px;display:grid;gap:16px}
-.card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0));border:1px solid var(--border);border-radius:14px;padding:18px 16px;box-shadow:0 10px 30px rgba(0,0,0,.2)}
+.card{
+  background: color-mix(in oklab, var(--card) 96%, transparent);
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:18px 16px;
+  box-shadow: var(--shadow);
+}
 .card h2{margin-top:8px}
-.card.note{border-color:#2a334a;background:rgba(56,189,248,.05)}
+.card.note{
+  border-color: color-mix(in oklab, var(--accent-2) 35%, var(--border));
+  background: color-mix(in oklab, var(--accent-2) 8%, transparent);
+}
 .card.info{border-color:#2a334a}
+
+/* ===========================
+   Form
+   =========================== */
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:10px 0}
 @media (max-width:780px){.grid{grid-template-columns:1fr}}
 
 label{display:flex;flex-direction:column;gap:8px;font-size:.95rem}
-input,select{background:#0b1220;border:1px solid var(--border);border-radius:10px;padding:10px 12px;color:var(--text);outline:none}
-input:focus,select:focus{border-color:var(--accent-2)}
+input,select,button{
+  font: inherit;
+}
+input,select{
+  background: var(--table);
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:10px 12px;
+  color:var(--text);
+  outline:none;
+  transition: border-color .15s ease, background-color .15s ease;
+}
+input::placeholder{ color: color-mix(in oklab, var(--muted) 85%, transparent); }
+input:focus,select:focus{
+  border-color: var(--accent-2);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent-2) 25%, transparent);
+}
 small{color:var(--muted)}
 
 .actions{display:flex;gap:10px;margin-top:8px}
-button{padding:10px 14px;border-radius:10px;border:1px solid var(--border);cursor:pointer;color:var(--text);background:#0b1220}
-button.primary{background:var(--accent);border-color:transparent;color:#0b1220;font-weight:700}
+button{
+  padding:10px 14px;border-radius:10px;border:1px solid var(--border);
+  cursor:pointer;color:var(--text);background:var(--table);
+  transition: transform .05s ease, background-color .15s ease, border-color .15s ease;
+}
+button:hover{ border-color: color-mix(in oklab, var(--accent-2) 40%, var(--border)); }
+button:active{ transform: translateY(1px); }
+button.primary{
+  background:var(--accent);
+  border-color:transparent;
+  color:#0f172a; /* legible en dark y light */
+  font-weight:700
+}
 button.ghost{background:transparent}
 
+/* ===========================
+   Tabla & Chart
+   =========================== */
 .table-wrap{overflow:auto;border:1px solid var(--border);border-radius:12px;margin-top:16px}
 table{width:100%;border-collapse:collapse;background:var(--table)}
 th,td{padding:8px 10px;border-bottom:1px solid var(--border);text-align:right}
 th:first-child,td:first-child{text-align:left}
-thead th{position:sticky;top:0;background:#0c1526}
+/* antes: color fijo #0c1526 */
+thead th{
+  position:sticky;top:0;
+  background: var(--card);
+}
 
-.chart-wrap{margin:14px 0;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:#0b1220}
-.note{color:#cde3ff}
+.chart-wrap{
+  margin:14px 0;border:1px solid var(--border);border-radius:12px;overflow:hidden;
+  background: var(--table);
+}
+
+/* ===========================
+   Textos, notas, footer
+   =========================== */
+.note{color: color-mix(in oklab, var(--text) 90%, transparent);}
 .disclaimer{color:var(--muted);font-size:.9rem}
-
 .app-footer{color:var(--muted);text-align:center;padding:20px}
+
+/* ===========================
+   Rescate anticipado
+   =========================== */
 .rescate{display:flex;align-items:center;gap:10px}
 #mesRescate{width:100%}
+
+/* ===========================
+   Listado FCI (si lo reactivás)
+   =========================== */
+#fci-reales .fci-item {
+  padding: .5rem .75rem;
+  border: 1px solid rgba(127,127,127,.15);
+  border-radius: .5rem;
+  margin-bottom: .5rem;
+  background: color-mix(in oklab, var(--card) 92%, transparent);
+}
+#fci-reales em { opacity: .8; font-style: normal; }
