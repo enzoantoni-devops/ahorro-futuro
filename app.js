@@ -15,6 +15,7 @@ const toggleRescate = document.getElementById('toggleRescate');
 const mesRescateInput = document.getElementById('mesRescate');
 const mesRescateLabel = document.getElementById('mesRescateLabel');
 const themeToggleBtn = document.getElementById('themeToggle');
+const errorFechaNacimiento = document.getElementById('errorFechaNacimiento');
 
 // ===========================
 // Tema (oscuro/claro) con persistencia
@@ -202,6 +203,18 @@ function renderChart(rows, rescate) {
 let lastRows = null;
 let lastRescate = null;
 
+function esMayorDeEdad(fechaNacimiento) {
+  const nacimiento = new Date(fechaNacimiento);
+  const hoy = new Date();
+  if (Number.isNaN(nacimiento.getTime())) return false;
+  let edad = hoy.getFullYear() - nacimiento.getFullYear();
+  const mes = hoy.getMonth() - nacimiento.getMonth();
+  if (mes < 0 || (mes === 0 && hoy.getDate() < nacimiento.getDate())) {
+    edad--;
+  }
+  return edad >= 18;
+}
+
 // Ejecuta toda la simulación y render con la tasa indicada
 async function runSimulacion({ nombre, fechaNacimiento, aporteMensual, motivo, plazoAnios, metodoPago, tasaAnual }) {
   const rows = simular(aporteMensual, plazoAnios, tasaAnual);
@@ -270,6 +283,14 @@ form.addEventListener('submit', async (e) => {
   if (!nombre || !fechaNacimiento || !aporteMensual || !plazoAnios) {
     alert('Completá todos los campos obligatorios.');
     return;
+  }
+
+  if (!esMayorDeEdad(fechaNacimiento)) {
+    alert('Debés ser mayor de 18 años.');
+    errorFechaNacimiento.hidden = false;
+    return;
+  } else {
+    errorFechaNacimiento.hidden = true;
   }
 
   const fondo = seleccionarFondoPorPlazo(plazoAnios);
