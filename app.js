@@ -4,6 +4,9 @@
 const fmtARS = new Intl.NumberFormat('es-AR', { style:'currency', currency:'ARS', maximumFractionDigits: 0 });
 const fmtPct = (n)=> `${n.toFixed(3)}%`;
 
+// Serie oficial UVA del BCRA
+const UVA_SERIE_ID = 11;
+
 const form = document.getElementById('sim-form');
 const resultado = document.getElementById('resultado');
 const resumen = document.getElementById('resumen');
@@ -98,16 +101,71 @@ function actualizarTasaSegunPlazo() {
 // ===========================
 // Simulación
 // ===========================
-function simular(aporteMensual, anios, tasaAnual) {
+async function fetchUva(fromDate, toDate) {
+  const fd = fromDate.toISOString().split('T')[0];
+  const td = toDate.toISOString().split('T')[0];
+  const url = `https://api.bcra.gob.ar/estadisticas/v1/series/${UVA_SERIE_ID}/datos?fecha_desde=${fd}&fecha_hasta=${td}`;
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error('Error al obtener UVA');
+  const json = await resp.json();
+  const datos = json?.series?.[0]?.datos || json?.results || [];
+  datos.sort((a,b)=> new Date(a.fecha) - new Date(b.fecha));
+  const map = new Map();
+  for (const d of datos) {
+    const mes = d.fecha.slice(0,7);
+    const valor = Number(d.valor);
+    const prev = map.get(mes);
+    if (!prev || new Date(d.fecha) > new Date(prev.fecha)) {
+      map.set(mes, { fecha: d.fecha, valor, estimado: false });
+    }
+  }
+  return Array.from(map.values());
+}
+
+async function simular(aporteMensual, anios, tasaAnual) {
   const n = Math.max(1, Math.round(anios * 12));
   const r = Math.pow(1 + tasaAnual/100, 1/12) - 1;
+
+  const fromDate = new Date();
+  const toDate = new Date();
+  toDate.setMonth(toDate.getMonth() + n);
+  const uva = await fetchUva(fromDate, toDate);
+
+  if (uva.length < n) {
+    const consider = Math.min(Math.max(uva.length - 1, 3), 6);
+    const rates = [];
+    for (let i = uva.length - consider; i < uva.length - 1; i++) {
+      const prev = uva[i].valor;
+      const next = uva[i+1].valor;
+      if (prev > 0) rates.push(next/prev - 1);
+    }
+    const avg = rates.length ? rates.reduce((a,b)=>a+b,0) / rates.length : 0;
+    let lastVal = uva[uva.length - 1]?.valor || 0;
+    let lastDate = uva[uva.length - 1] ? new Date(uva[uva.length - 1].fecha) : new Date();
+    for (let i = uva.length; i < n; i++) {
+      lastDate.setMonth(lastDate.getMonth() + 1);
+      lastVal = avg ? lastVal * (1 + avg) : lastVal;
+      uva.push({ fecha: lastDate.toISOString().split('T')[0], valor: lastVal, estimado: true });
+    }
+  }
+
+  while (uva.length < n) {
+    const last = uva[uva.length - 1];
+    const d = new Date(last.fecha);
+    d.setMonth(d.getMonth() + 1);
+    uva.push({ fecha: d.toISOString().split('T')[0], valor: last.valor, estimado: true });
+  }
+
+  const base = uva[0]?.valor || 1;
   let saldo = 0;
   const rows = [];
-  for (let m = 1; m <= n; m++) {
+  for (let m = 0; m < n; m++) {
+    const factor = uva[m].valor / base;
+    const aporte = aporteMensual * factor;
     const saldoInicial = saldo;
     const rendimiento = saldoInicial * r;
-    saldo = saldoInicial + rendimiento + aporteMensual;
-    rows.push({ mes:m, saldoInicial, aporte: aporteMensual, rendimiento, saldo });
+    saldo = saldoInicial + rendimiento + aporte;
+    rows.push({ mes: m+1, saldoInicial, aporte, rendimiento, saldo, estimado: uva[m].estimado });
   }
   return rows;
 }
@@ -141,8 +199,8 @@ function aplicarRescate(rows, mesRescate) {
 
 function renderTabla(rows) {
   tablaBody.innerHTML = rows.map(r => `
-    <tr>
-      <td>${r.mes}</td>
+    <tr class="${r.estimado ? 'estimado' : ''}">
+      <td>${r.mes}${r.estimado ? '*' : ''}</td>
       <td>${fmtARS.format(r.saldoInicial)}</td>
       <td>${fmtARS.format(r.aporte)}</td>
       <td>${fmtARS.format(r.rendimiento)}</td>
@@ -217,7 +275,7 @@ function esMayorDeEdad(fechaNacimiento) {
 
 // Ejecuta toda la simulación y render con la tasa indicada
 async function runSimulacion({ nombre, fechaNacimiento, aporteMensual, motivo, plazoAnios, metodoPago, tasaAnual }) {
-  const rows = simular(aporteMensual, plazoAnios, tasaAnual);
+  const rows = await simular(aporteMensual, plazoAnios, tasaAnual);
 
   // tope del slider: último MES anticipado (N-1)
   setRescateMax(Math.max(1, rows.length - 1));
@@ -246,6 +304,7 @@ async function runSimulacion({ nombre, fechaNacimiento, aporteMensual, motivo, p
     <p>Aporte mensual: <strong>${fmtARS.format(aporteMensual)}</strong> — Tasa anual aplicada: <strong>${fmtPct(tasaAnual)}</strong></p>
     <p>Monto total aportado: <strong>${fmtARS.format(montoTotalAportado)}</strong> — Proyección de saldo final: <strong>${fmtARS.format(saldoFinal)}</strong></p>
     <p class="mini">Método de débito elegido: ${metodoPago.toUpperCase()} — Motivo: ${motivo}</p>
+    ${rows.some(r=>r.estimado) ? '<p class="disclaimer">UVA values beyond the latest official publication are estimated and may differ from actual figures.</p>' : ''}
   `;
 
   renderTabla(rows);
