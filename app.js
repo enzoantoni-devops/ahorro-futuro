@@ -99,44 +99,14 @@ function actualizarTasaSegunPlazo() {
 // Simulación
 // ===========================
 
-// Obtiene series UVA de alguna API pública. Devuelve [{valor, estimado?}, …]
-async function fetchUva(n) {
-  const url = `https://apis.datos.gob.ar/series/api/series/?ids=11.3_UVA_VA_D_0_0_26&limit=${n}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error('Network error');
-  const data = await res.json();
-  // Estructura esperada: { data: [[fecha, valor], …] }
-  return (data && data.data) ? data.data.map(d => ({ valor: Number(d[1]), estimado: false })) : [];
-}
-
-async function simular(aporteMensual, anios, tasaAnual) {
+function simular(aporteMensual, anios, tasaAnual) {
   const n = Math.max(1, Math.round(anios * 12));
+  const r = Math.pow(1 + tasaAnual/100, 1/12) - 1;
 
-  let uva = [];
-  try {
-    uva = await fetchUva(n + 1); // n+1 para calcular n variaciones
-  } catch (err) {
-    console.error('Error al obtener UVA:', err);
-  }
-  if (!uva.length) {
-    console.error('No se pudo obtener la cotización UVA. Se usarán valores estimados.');
-    uva = Array.from({ length: n + 1 }, () => ({ valor: 1, estimado: true }));
-    alert('No se pudo obtener la cotización UVA. Los resultados son estimados.');
-  }
-
-  const growthRates = [];
-  for (let i = 1; i < uva.length; i++) {
-    const prev = uva[i - 1].valor;
-    const curr = uva[i].valor;
-    growthRates.push(prev ? curr / prev - 1 : 0);
-  }
-
-  const rDefault = Math.pow(1 + tasaAnual/100, 1/12) - 1;
   let saldo = 0;
   const rows = [];
   for (let m = 1; m <= n; m++) {
     const saldoInicial = saldo;
-    const r = growthRates[m - 1] ?? rDefault;
     const rendimiento = saldoInicial * r;
     saldo = saldoInicial + rendimiento + aporteMensual;
     rows.push({ mes:m, saldoInicial, aporte: aporteMensual, rendimiento, saldo });
@@ -248,8 +218,8 @@ function esMayorDeEdad(fechaNacimiento) {
 }
 
 // Ejecuta toda la simulación y render con la tasa indicada
-async function runSimulacion({ nombre, fechaNacimiento, aporteMensual, motivo, plazoAnios, metodoPago, tasaAnual }) {
-  const rows = await simular(aporteMensual, plazoAnios, tasaAnual);
+function runSimulacion({ nombre, fechaNacimiento, aporteMensual, motivo, plazoAnios, metodoPago, tasaAnual }) {
+  const rows = simular(aporteMensual, plazoAnios, tasaAnual);
 
   // tope del slider: último MES anticipado (N-1)
   setRescateMax(Math.max(1, rows.length - 1));
@@ -278,6 +248,7 @@ async function runSimulacion({ nombre, fechaNacimiento, aporteMensual, motivo, p
     <p>Aporte mensual: <strong>${fmtARS.format(aporteMensual)}</strong> — Tasa anual aplicada: <strong>${fmtPct(tasaAnual)}</strong></p>
     <p>Monto total aportado: <strong>${fmtARS.format(montoTotalAportado)}</strong> — Proyección de saldo final: <strong>${fmtARS.format(saldoFinal)}</strong></p>
     <p class="mini">Método de débito elegido: ${metodoPago.toUpperCase()} — Motivo: ${motivo}</p>
+    <p class="mini">La cuota se actualizará cada mes según el índice UVA.</p>
   `;
 
   renderTabla(rows);
@@ -302,7 +273,7 @@ form.addEventListener('input', (e) => {
   if (e.target && e.target.id === 'plazoAnios') actualizarTasaSegunPlazo();
 });
 
-form.addEventListener('submit', async (e) => {
+form.addEventListener('submit', (e) => {
   e.preventDefault();
 
   const nombre = document.getElementById('nombre').value.trim();
@@ -328,5 +299,5 @@ form.addEventListener('submit', async (e) => {
   const fondo = seleccionarFondoPorPlazo(plazoAnios);
   document.getElementById('tasaAnual').value = String(fondo.tasa.toFixed(3));
 
-  await runSimulacion({ nombre, fechaNacimiento, aporteMensual, motivo, plazoAnios, metodoPago, tasaAnual: fondo.tasa });
+  runSimulacion({ nombre, fechaNacimiento, aporteMensual, motivo, plazoAnios, metodoPago, tasaAnual: fondo.tasa });
 });
